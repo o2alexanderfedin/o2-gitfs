@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  hygiene:
+    name: Repository hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Required files are present
+        run: |
+          missing=0
+          for f in README.md CHANGELOG.md CLAUDE.md .gitignore; do
+            if [ ! -f "$f" ]; then
+              echo "::error::missing required file: $f"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Changelog has an Unreleased section
+        run: |
+          if ! grep -q '^## \[Unreleased\]' CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [Unreleased]' section"
+            exit 1
+          fi
+
+      - name: Relative links in Markdown resolve
+        run: |
+          broken=0
+          while IFS= read -r md; do
+            # Extract link targets, drop URLs, anchors and mailto:
+            grep -oE '\]\([^)]+\)' "$md" \
+              | sed -E 's/^\]\(//; s/\)$//' \
+              | grep -vE '^(https?:|mailto:|#)' \
+              | sed -E 's/#.*$//' \
+              | while IFS= read -r target; do
+                  [ -z "$target" ] && continue
+                  resolved="$(dirname "$md")/$target"
+                  if [ ! -e "$resolved" ]; then
+                    echo "::error file=$md::broken relative link: $target"
+                    echo broken >> /tmp/broken.flag
+                  fi
+                done
+          done < <(find . -name '*.md' -not -path './.git/*')
+          if [ -f /tmp/broken.flag ]; then broken=1; fi
+          exit $broken

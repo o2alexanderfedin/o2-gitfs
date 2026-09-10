@@ -1,0 +1,39 @@
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Build output
+build/
+dist/
+target/
+*.o
+*.a
+*.so
+*.dylib
+
+# Rust
+Cargo.lock
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Coverage
+htmlcov/
+.coverage
+*.gcda
+*.gcno
+
+# Local tooling state
+.planning/
+.remember/
+.serena/
+graphify-out/
