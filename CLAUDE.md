@@ -12,9 +12,16 @@ changes, and update them in the same change that alters behaviour.
 
 ## Branching
 
-git-flow. Branch from `develop`, never commit directly to `main`.
-Use `feature/*` for functionality, `chore/*` for maintenance, `docs/*` for
-documentation-only work.
+git-flow, enforced rather than advisory. `main` and `develop` reject direct
+commits — locally through `.githooks/pre-commit`, and on GitHub through branch
+protection.
+
+Use `git flow feature start <name>` / `finish`, or the matching `release` and
+`hotfix` commands. After cloning, run `git config core.hooksPath .githooks`
+once to activate the local hook.
+
+Never try to work around the hook with `--no-verify`; if a change genuinely
+belongs on a protected branch, say so and let the human decide.
 
 ## Task Execution Strategy
 

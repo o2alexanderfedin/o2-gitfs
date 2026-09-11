@@ -38,10 +38,29 @@ git-flow:
 - `develop` — integration branch, base for day-to-day work
 - `feature/*`, `chore/*`, `docs/*` — branched from and merged back into `develop`
 
+`main` and `develop` are protected: direct commits are rejected locally by a
+pre-commit hook and on GitHub by branch protection. Work goes through
+`git flow`.
+
 ## Getting started
 
 ```bash
 git clone https://github.com/o2alexanderfedin/o2-gitfs.git
 cd o2-gitfs
+git config core.hooksPath .githooks   # enable the protected-branch hook
+git flow init -d                      # main / develop, default prefixes
 git checkout develop
+```
+
+The `core.hooksPath` line is required once per clone: git deliberately does not
+let a repository activate its own hooks, so a versioned hook still has to be
+opted into. Skipping it costs you only the local guard — GitHub branch
+protection still rejects pushes straight to `main` and `develop`.
+
+Day-to-day:
+
+```bash
+git flow feature start <name>
+# work, commit
+git flow feature finish <name>       # merges into develop
 ```
