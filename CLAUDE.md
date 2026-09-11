@@ -17,8 +17,10 @@ commits — locally through `.githooks/pre-commit`, and on GitHub through branch
 protection.
 
 Use `git flow feature start <name>` / `finish`, or the matching `release` and
-`hotfix` commands. After cloning, run `git config core.hooksPath .githooks`
-once to activate the local hook.
+`hotfix` commands. After cloning, install the hook once:
+`cp .githooks/pre-commit .git/hooks/ && chmod +x .git/hooks/pre-commit`.
+It goes in `.git/hooks/` rather than via `core.hooksPath` so that it applies on
+every branch, including ones that do not carry `.githooks/`.
 
 Never try to work around the hook with `--no-verify`; if a change genuinely
 belongs on a protected branch, say so and let the human decide.

@@ -47,14 +47,20 @@ pre-commit hook and on GitHub by branch protection. Work goes through
 ```bash
 git clone https://github.com/o2alexanderfedin/o2-gitfs.git
 cd o2-gitfs
-git config core.hooksPath .githooks   # enable the protected-branch hook
+cp .githooks/pre-commit .git/hooks/ && chmod +x .git/hooks/pre-commit
 git flow init -d                      # main / develop, default prefixes
 git checkout develop
 ```
 
-The `core.hooksPath` line is required once per clone: git deliberately does not
-let a repository activate its own hooks, so a versioned hook still has to be
-opted into. Skipping it costs you only the local guard — GitHub branch
+The hook is copied rather than activated in place with `core.hooksPath`.
+`.githooks/` is tracked content, so it only exists on branches that contain it —
+pointing `core.hooksPath` at it leaves `main` and `develop` unprotected until
+the hook has been merged into them, which is exactly backwards. `.git/hooks/`
+sits outside the work tree and therefore applies on every branch. `.githooks/`
+remains the versioned source of truth.
+
+Copying is required once per clone: git deliberately does not let a repository
+activate its own hooks. Skipping it costs only the local guard — GitHub branch
 protection still rejects pushes straight to `main` and `develop`.
 
 Day-to-day:
