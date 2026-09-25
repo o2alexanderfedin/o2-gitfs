@@ -51,3 +51,15 @@ jobs:
           done < <(find . -name '*.md' -not -path './.git/*')
           if [ -f /tmp/broken.flag ]; then broken=1; fi
           exit $broken
+
+  hook:
+    name: pre-commit hook
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shellcheck
+        run: shellcheck .githooks/pre-commit tests/pre-commit.test.sh
+
+      - name: Hook behaviour in throwaway repos
+        run: tests/pre-commit.test.sh
