@@ -5,6 +5,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The pre-commit hook no longer rejects the commit that concludes a conflicted
+  merge into `develop` or `main`. `git flow feature finish` (and `release` /
+  `hotfix`) stopped on a conflict could only be completed with `--no-verify`.
+  Covered by `tests/pre-commit.test.sh`, now run in CI with shellcheck.
+
 ## [0.1.0] — 2026-09-10
 
 ### Added
