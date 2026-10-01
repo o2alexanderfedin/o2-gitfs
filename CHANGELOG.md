@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- CI now checks reference-style Markdown links (`[label]: path`). Before, a
+  broken one passed the "Relative links in Markdown resolve" step, so readers
+  got a dead link that CI had reported as fine. The check moved to
+  `.github/scripts/check-md-links.sh`, covered by
+  `tests/check-md-links.test.sh`; it no longer keeps state in `/tmp`.
 - The pre-commit hook no longer rejects the commit that concludes a conflicted
   merge into `develop` or `main`. `git flow feature finish` (and `release` /
   `hotfix`) stopped on a conflict could only be completed with `--no-verify`.

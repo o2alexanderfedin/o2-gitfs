@@ -32,25 +32,10 @@ jobs:
           fi
 
       - name: Relative links in Markdown resolve
-        run: |
-          broken=0
-          while IFS= read -r md; do
-            # Extract link targets, drop URLs, anchors and mailto:
-            grep -oE '\]\([^)]+\)' "$md" \
-              | sed -E 's/^\]\(//; s/\)$//' \
-              | grep -vE '^(https?:|mailto:|#)' \
-              | sed -E 's/#.*$//' \
-              | while IFS= read -r target; do
-                  [ -z "$target" ] && continue
-                  resolved="$(dirname "$md")/$target"
-                  if [ ! -e "$resolved" ]; then
-                    echo "::error file=$md::broken relative link: $target"
-                    echo broken >> /tmp/broken.flag
-                  fi
-                done
-          done < <(find . -name '*.md' -not -path './.git/*')
-          if [ -f /tmp/broken.flag ]; then broken=1; fi
-          exit $broken
+        run: .github/scripts/check-md-links.sh
+
+      - name: Link checker behaviour on sample trees
+        run: tests/check-md-links.test.sh
 
   hook:
     name: pre-commit hook
@@ -59,7 +44,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Shellcheck
-        run: shellcheck .githooks/pre-commit tests/pre-commit.test.sh
+        run: >
+          shellcheck .githooks/pre-commit tests/pre-commit.test.sh
+          .github/scripts/check-md-links.sh tests/check-md-links.test.sh
 
       - name: Hook behaviour in throwaway repos
         run: tests/pre-commit.test.sh
