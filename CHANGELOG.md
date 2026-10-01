@@ -7,6 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The Markdown link check no longer reports valid links as broken when they
+  start with `/` (resolved from the repository root, as on GitHub), carry a
+  title (`[t](b.md "Title")`), use `<...>` around the target, or use URL
+  escapes such as `%20`. Links inside fenced code blocks and inline code are
+  no longer checked. A file the check cannot read now fails it instead of
+  passing as having no links.
 - CI now checks reference-style Markdown links (`[label]: path`). Before, a
   broken one passed the "Relative links in Markdown resolve" step, so readers
   got a dead link that CI had reported as fine. The check moved to
