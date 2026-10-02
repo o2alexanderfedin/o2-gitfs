@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The Markdown link check no longer reports links with schemes other than
+  http, https and mailto (such as `ftp:` or `tel:`) as broken files. It now
+  also checks links written in HTML (`<a href>`, `<img src>`); before, a
+  broken one passed without notice.
 - The Markdown link check no longer reports valid links as broken when they
   start with `/` (resolved from the repository root, as on GitHub), carry a
   title (`[t](b.md "Title")`), use `<...>` around the target, or use URL

@@ -118,6 +118,35 @@ expect "link inside a double-backtick span holding a backtick is not checked" cl
 expect "link after a closed code span is checked" missing.md \
   "$(check "$(new_tree code-span-closed 'Run `ls` then read [m](missing.md).')")"
 
+# Any "scheme:" at the start of a target (RFC 3986) names a URL, not a file.
+expect "other URI schemes are not checked" clean \
+  "$(check "$(new_tree schemes '[f](ftp://example.com/x.md) [t](tel:+15551234) [c](x-my.app+v2:open)')")"
+
+expect "reference-style target with another scheme is not checked" clean \
+  "$(check "$(new_tree ref-scheme "$(printf '[f][ref]\n\n[ref]: ftp://example.com/x.md')")")"
+
+expect "a colon after a slash is part of a path, not a scheme" dir/a:b.md \
+  "$(check "$(new_tree colon-path '[c](dir/a:b.md)')")"
+
+# Links written in HTML lead readers to files just as Markdown links do.
+expect "HTML href to a missing file is reported" "missing.md bare.md" \
+  "$(check "$(new_tree html-href '<a href="missing.md">m</a> <A HREF=bare.md>b</A>')")"
+
+expect "HTML src to a missing file is reported" missing.png \
+  "$(check "$(new_tree html-src "<p><img alt=\"x\" src='missing.png'></p>")")"
+
+expect "HTML links to existing files are clean" clean \
+  "$(check "$(new_tree html-ok '<a href=present.md>p</a> <img src = "with space.md">')")"
+
+expect "HTML links to URLs and data are not checked" clean \
+  "$(check "$(new_tree html-url '<a href="https://example.com/x.md">u</a> <img src="data:image/png;base64,AAAA"> <a href="#top">t</a>')")"
+
+expect "HTML link inside a fence is not checked" clean \
+  "$(check "$(new_tree html-fence "$(printf '```html\n<a href="missing.md">m</a>\n```')")")"
+
+expect "HTML link inside a code span is not checked" clean \
+  "$(check "$(new_tree html-span 'Write `<img src="missing.png">` here.')")"
+
 # A file the checker cannot read must fail the check, not pass it as clean.
 unreadable="$(new_tree unreadable '[m](missing.md)')"
 chmod 000 "$unreadable/docs/page.md"

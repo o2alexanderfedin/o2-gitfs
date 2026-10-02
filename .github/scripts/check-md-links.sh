@@ -7,6 +7,7 @@ set -u
 
 root="${1:-.}"
 broken=0
+scheme='^[A-Za-z][A-Za-z0-9+.-]*:'
 
 # Prints the Markdown file with code removed: fenced blocks (``` and ~~~) become
 # empty lines and inline code spans are cut out. Code shows Markdown; it does
@@ -51,16 +52,29 @@ prose() {
   ' "$1"
 }
 
+# Prints, as <value>, each href and src attribute value in HTML tags read from
+# standard input: <a href="x.md">, <img src='y.png'>, <A HREF=z.md>.
+html_targets() {
+  local q="'"
+  grep -oE '<[A-Za-z][^>]*>' \
+    | grep -oE "[[:space:]]([Hh][Rr][Ee][Ff]|[Ss][Rr][Cc])[[:space:]]*=[[:space:]]*(\"[^\"]*\"|${q}[^$q]*$q|[^[:space:]\"$q>]+)" \
+    | sed -E "s/^[^=]*=[[:space:]]*//; s/^[\"$q]//; s/[\"$q]\$//; s/.*/<&>/"
+  return 0
+}
+
 # Prints the link targets in a Markdown file, with any <...> and title still
 # attached, one per line.
 # Inline links: [text](target)
 # Reference definitions: [label]: target   (not footnotes, [^1]: text)
+# HTML: href= and src= inside a tag, printed as <target> so that a space in
+# the value does not cut it the way it cuts off a Markdown title.
 targets() {
   local text
   text="$(prose "$1")" || return
   grep -oE '\]\([^)]+\)' <<<"$text" | sed -E 's/^\]\(//; s/\)$//'
   grep -oE '^ {0,3}\[[^]^][^]]*\]:[[:space:]]*(<[^>]*>|[^[:space:]]+)' <<<"$text" \
     | sed -E 's/^[^]]*\]:[[:space:]]*//'
+  html_targets <<<"$text"
   return 0
 }
 
@@ -74,7 +88,10 @@ while IFS= read -r md; do
       '<'*'>'*) target="${target#<}"; target="${target%%>*}" ;;  # <a b.md>
       *) target="${target%%[[:space:]]*}" ;;   # drop a title: [t](path "Title")
     esac
-    case "$target" in https:* | http:* | mailto:* | '#'*) continue ;; esac
+    # A URL ("scheme:" per RFC 3986: https:, mailto:, ftp:, tel:, ...) or an
+    # anchor in this file: not a path.
+    [[ $target =~ $scheme ]] && continue
+    case "$target" in '#'*) continue ;; esac
     target="${target%%#*}"
     [ -z "$target" ] && continue
     path="$(printf '%b' "${target//%/\\x}")"   # with%20space.md -> with space.md
