@@ -10,13 +10,14 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 failures=0
 
-# A tree holding docs/page.md with the given content, plus docs/present.md
-# and "docs/with space.md".
+# A tree holding docs/page.md with the given content, plus docs/present.md,
+# "docs/with space.md" and "docs/present(1).md".
 new_tree() {
   local dir="$WORK/$1"
   mkdir -p "$dir/docs"
   echo present > "$dir/docs/present.md"
   echo present > "$dir/docs/with space.md"
+  echo present > "$dir/docs/present(1).md"
   printf '%s\n' "$2" > "$dir/docs/page.md"
   echo "$dir"
 }
@@ -115,8 +116,71 @@ expect "link inside an inline code span is not checked" clean \
 expect "link inside a double-backtick span holding a backtick is not checked" clean \
   "$(check "$(new_tree code-span-double 'Write ``a ` [m](missing.md)`` here.')")"
 
+expect "link inside a code span in a heading is not checked" clean \
+  "$(check "$(new_tree code-span-heading '### Call `f[x](missing.md)` here')")"
+
 expect "link after a closed code span is checked" missing.md \
   "$(check "$(new_tree code-span-closed 'Run `ls` then read [m](missing.md).')")"
+
+# A target may hold parentheses: balanced ones, or escaped with \. An
+# unbalanced ( makes the whole thing plain text, not a link (CommonMark).
+expect "target with balanced parentheses is clean" clean \
+  "$(check "$(new_tree parens-ok '[p](present(1).md) and [t](present(1).md "A (title)")')")"
+
+expect "missing target with balanced parentheses is reported whole" "missing(1).md" \
+  "$(check "$(new_tree parens-broken '[m](missing(1).md)')")"
+
+expect "target with escaped parentheses is clean" clean \
+  "$(check "$(new_tree parens-escaped '[e](present\(1\).md)')")"
+
+expect "unbalanced parenthesis is not a link" clean \
+  "$(check "$(new_tree parens-unbalanced '[u](missing(.md)')")"
+
+# A code span may continue onto the next line of the same paragraph.
+expect "link inside a code span over two lines is not checked" clean \
+  "$(check "$(new_tree span-2-lines "$(printf 'Write `a\n[m](missing.md)` here.')")")"
+
+expect "a code span does not cross a blank line" missing.md \
+  "$(check "$(new_tree span-blank "$(printf 'Write `a\n\n[m](missing.md)` here.')")")"
+
+expect "a code span does not cross a blank line in a CRLF file" missing.md \
+  "$(check "$(new_tree span-blank-crlf "$(printf 'Write `a\r\n\r\n[m](missing.md)` here.\r')")")"
+
+# A line indented by 4 spaces or a tab, not continuing a paragraph, is code.
+expect "link inside an indented code block is not checked" clean \
+  "$(check "$(new_tree indent-code "$(printf 'Text.\n\n    [m](missing.md)\n\n\t[m2](missing2.md)')")")"
+
+expect "indented code right after a heading is not checked" clean \
+  "$(check "$(new_tree indent-heading "$(printf '# Title\n    [m](missing.md)')")")"
+
+expect "indented line continuing a paragraph is checked" missing.md \
+  "$(check "$(new_tree indent-para "$(printf 'Text\n    [m](missing.md)')")")"
+
+expect "link after an indented code block is checked" "missing.md missing2.md" \
+  "$(check "$(new_tree indent-end "$(printf 'Text.\n\n    code\n[m](missing.md)\n    [m2](missing2.md)')")")"
+
+# In a list item, code starts 4 columns past the item's text, not the margin.
+expect "list item paragraph indented by 4 is checked" "missing.md missing2.md" \
+  "$(check "$(new_tree list-para "$(printf -- '- item\n\n    [m](missing.md)\n\n1. item\n\n    [m2](missing2.md)')")")"
+
+expect "indented code inside a list item is not checked" clean \
+  "$(check "$(new_tree list-code "$(printf -- '- item\n\n      [m](missing.md)')")")"
+
+expect "fence inside a list item is not checked" clean \
+  "$(check "$(new_tree list-fence "$(printf '1. item\n\n    ~~~\n    [m](missing.md)\n    ~~~')")")"
+
+expect "link after a fence inside a list item is checked" missing.md \
+  "$(check "$(new_tree list-fence-end "$(printf '1. item\n\n    ```\n    x\n    ```\n\n    [m](missing.md)')")")"
+
+expect "indented code inside a block quote is not checked" clean \
+  "$(check "$(new_tree quote-code "$(printf '> Text.\n>\n>     [m](missing.md)')")")"
+
+# A reference definition may put its target on the next line.
+expect "reference target on the next line is checked" missing-ref.md \
+  "$(check "$(new_tree ref-next "$(printf '[m][ref]\n\n[ref]:\n  missing-ref.md')")")"
+
+expect "reference target on the next line to an existing file is clean" clean \
+  "$(check "$(new_tree ref-next-ok "$(printf '[p][ref]\n\n[ref]:\n  <with space.md> "Title"')")")"
 
 # Any "scheme:" at the start of a target (RFC 3986) names a URL, not a file.
 expect "other URI schemes are not checked" clean \
