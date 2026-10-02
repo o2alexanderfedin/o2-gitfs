@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The Markdown link check no longer reports valid links whose target holds
+  parentheses (`[a](file(1).md)`) as broken, and no longer checks example
+  links in indented code blocks or in code spans that continue onto the next
+  line. A reference definition with its target on the next line
+  (`[label]:` then `  path.md`) is now checked; before, a broken one passed.
 - The Markdown link check no longer reports links with schemes other than
   http, https and mailto (such as `ftp:` or `tel:`) as broken files. It now
   also checks links written in HTML (`<a href>`, `<img src>`); before, a

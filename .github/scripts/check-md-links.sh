@@ -9,9 +9,16 @@ root="${1:-.}"
 broken=0
 scheme='^[A-Za-z][A-Za-z0-9+.-]*:'
 
-# Prints the Markdown file with code removed: fenced blocks (``` and ~~~) become
-# empty lines and inline code spans are cut out. Code shows Markdown; it does
-# not link.
+# Prints the Markdown file with code removed, so that example links in code
+# are not checked. Code shows Markdown; it does not link.
+# - Fenced blocks (``` and ~~~) and indented code blocks become empty lines.
+# - Code spans are cut out; one may continue onto the next line of the same
+#   paragraph, so text is kept until the paragraph ends and cut as a whole.
+# - Inside a list item, lines are printed without the item's indentation, and
+#   code there starts 4 columns past the item's text. Block-quote markers (>)
+#   are removed.
+# - A reference definition whose target is on the next line is joined into
+#   one line: "[label]:" + "  target" -> "[label]: target".
 prose() {
   awk '
     # Removes `code` and ``co`de`` spans: a run of backticks up to the next
@@ -32,24 +39,108 @@ prose() {
       }
       return out s
     }
-    fence == "" && match($0, /^ ? ? ?(```+|~~~+)/) {
-      open = substr($0, RSTART, RLENGTH); sub(/^ */, "", open)
-      # A ``` fence has no backtick after it; otherwise it is inline code.
-      if (substr(open, 1, 1) == "~" || index(substr($0, RSTART + RLENGTH), "`") == 0) {
-        fence = open; print ""; next
+    # Prints the paragraph kept so far, code spans cut out.
+    function flush() {
+      if (para != "") print spans(para)
+      para = ""; last = ""
+    }
+    # Tabs in the indentation become spaces, to the next multiple of 4.
+    function untab(s,    out, c) {
+      out = ""
+      while ((c = substr(s, 1, 1)) == " " || c == "\t") {
+        out = out " "
+        if (c == "\t") while (length(out) % 4) out = out " "
+        s = substr(s, 2)
       }
+      return out s
+    }
+    {
+      line = $0; sub(/\r$/, "", line)          # CRLF line ends
+      line = untab(line)
+      while (match(line, /^ ? ? ?> ?/)) line = untab(substr(line, RLENGTH + 1))
+      match(line, /^ */); ind = RLENGTH
+      blank = (ind == length(line))
     }
     fence != "" {
       # Closed by the same character, at least as many times, nothing after.
-      if (match($0, /^ ? ? ?(```+|~~~+)[ \t]*$/)) {
-        shut = substr($0, RSTART, RLENGTH); gsub(/[ \t]/, "", shut)
+      rel = substr(line, (ind < fbase ? ind : fbase) + 1)
+      if (match(rel, /^ ? ? ?(```+|~~~+)[ \t]*$/)) {
+        shut = substr(rel, RSTART, RLENGTH); gsub(/[ \t]/, "", shut)
         if (substr(shut, 1, 1) == substr(fence, 1, 1) && length(shut) >= length(fence))
           fence = ""
       }
       print ""; next
     }
-    { print spans($0) }
+    incode {
+      if (blank || ind >= base + 4) { gap = gap || blank; print ""; next }
+      incode = 0
+    }
+    blank { flush(); gap = 1; print ""; next }
+    {
+      # A list item ends at a line, after a blank one, indented less than its
+      # text; a new item marker ends the items it is not nested in.
+      item = (line ~ /^ *([-+*]|[0-9]+[.)])( |$)/) && !(line ~ /^ *([-*_] *)+$/)
+      if (gap || item) while (depth > 0 && ind < stack[depth]) depth--
+      gap = 0
+      base = depth ? stack[depth] : 0
+      if (para == "" && ind >= base + 4) { incode = 1; print ""; next }
+      rel = ind >= base ? substr(line, base + 1) : substr(line, ind + 1)
+    }
+    match(rel, /^ ? ? ?(```+|~~~+)/) {
+      open = substr(rel, RSTART, RLENGTH); sub(/^ */, "", open)
+      # A ``` fence has no backtick after it; otherwise it is inline code.
+      if (substr(open, 1, 1) == "~" || index(substr(rel, RSTART + RLENGTH), "`") == 0) {
+        flush(); fence = open; fbase = base; print ""; next
+      }
+    }
+    item && ind - base < 4 {
+      flush()
+      match(rel, /^ *([-+*]|[0-9]+[.)]) ?/); text = RLENGTH
+      match(substr(rel, text + 1), /^ */)
+      if (RLENGTH < 4 && text + RLENGTH < length(rel)) text += RLENGTH
+      stack[++depth] = base + text
+    }
+    rel ~ /^ ? ? ?#+( |\t|$)/ || rel ~ /^ *([-*_] *)+$/ { flush(); print spans(rel); next }
+    {
+      # "[label]:" alone on its line takes its target from the next line.
+      if (last ~ /^ ? ? ?\[[^]]*\]:[ \t]*$/) { sub(/^ */, "", rel); para = para " " rel }
+      else para = (para == "" ? rel : para "\n" rel)
+      last = rel
+    }
+    END { flush() }
   ' "$1"
+}
+
+# Prints the target of each inline link [text](target) in the text read from
+# standard input, without its title; <target> keeps its angle brackets. The
+# target may hold balanced or \-escaped parentheses, as in CommonMark;
+# [t](a(b.md) has an unbalanced one and is plain text, not a link.
+inline_targets() {
+  awk '
+    {
+      s = $0
+      while ((i = index(s, "](")) > 0) {
+        s = substr(s, i + 2); sub(/^[ \t]*/, "", s)
+        if (substr(s, 1, 1) == "<") {
+          if ((j = index(s, ">")) > 0) print substr(s, 1, j)
+          continue
+        }
+        target = ""; depth = 0; ok = 0
+        for (k = 1; k <= length(s); k++) {
+          c = substr(s, k, 1)
+          if (c == "\\" && substr(s, k + 1, 1) ~ /[^A-Za-z0-9 ]/) {
+            k++; target = target substr(s, k, 1); continue
+          }
+          if (c == " " || c == "\t") { ok = (depth == 0); break }
+          if (c == "(") depth++
+          else if (c == ")") { if (depth == 0) { ok = 1; break }; depth-- }
+          target = target c
+        }
+        if (ok && target != "") print target
+        s = substr(s, k)
+      }
+    }
+  '
 }
 
 # Prints, as <value>, each href and src attribute value in HTML tags read from
@@ -71,7 +162,7 @@ html_targets() {
 targets() {
   local text
   text="$(prose "$1")" || return
-  grep -oE '\]\([^)]+\)' <<<"$text" | sed -E 's/^\]\(//; s/\)$//'
+  inline_targets <<<"$text"
   grep -oE '^ {0,3}\[[^]^][^]]*\]:[[:space:]]*(<[^>]*>|[^[:space:]]+)' <<<"$text" \
     | sed -E 's/^[^]]*\]:[[:space:]]*//'
   html_targets <<<"$text"
